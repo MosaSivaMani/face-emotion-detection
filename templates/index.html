@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Emotion Detection</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .main-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            margin: 2rem auto;
+            max-width: 1200px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 20px 20px 0 0;
+            text-align: center;
+        }
+        
+        .content {
+            padding: 2rem;
+        }
+        
+        .tab-content {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 3rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover {
+            border-color: #764ba2;
+            background-color: #f8f9ff;
+        }
+        
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background-color: #f0f2ff;
+        }
+        
+        .webcam-container {
+            position: relative;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        #video {
+            width: 100%;
+            border-radius: 15px;
+        }
+        
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 15px;
+            pointer-events: none;
+        }
+        
+        .emotion-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            font-weight: bold;
+            margin: 0.25rem;
+            color: white;
+        }
+        
+        .emotion-happy { background-color: #28a745; }
+        .emotion-sad { background-color: #6c757d; }
+        .emotion-angry { background-color: #dc3545; }
+        .emotion-fear { background-color: #6f42c1; }
+        .emotion-surprise { background-color: #fd7e14; }
+        .emotion-disgust { background-color: #20c997; }
+        .emotion-neutral { background-color: #17a2b8; }
+        .emotion-contempt { background-color: #6c757d; }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .result-container {
+            margin-top: 2rem;
+            display: none;
+        }
+        
+        .confidence-bar {
+            background-color: #e9ecef;
+            border-radius: 10px;
+            height: 20px;
+            margin: 0.5rem 0;
+            overflow: hidden;
+        }
+        
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+        
+        .btn-custom {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            padding: 0.75rem 2rem;
+            border-radius: 25px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            color: white;
+        }
+        
+        .btn-custom:active {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="main-container">
+            <div class="header">
+                <h1><i class="fas fa-smile"></i> Face Emotion Detection</h1>
+                <p class="mb-0">Upload an image or use your webcam to detect emotions in real-time</p>
+            </div>
+            
+            <div class="content">
+                <ul class="nav nav-tabs" id="myTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload" type="button" role="tab">
+                            <i class="fas fa-upload"></i> Upload Image
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="webcam-tab" data-bs-toggle="tab" data-bs-target="#webcam" type="button" role="tab">
+                            <i class="fas fa-camera"></i> Webcam
+                        </button>
+                    </li>
+                </ul>
+                
+                <div class="tab-content" id="myTabContent">
+                    <!-- Upload Tab -->
+                    <div class="tab-pane fade show active" id="upload" role="tabpanel">
+                        <div class="upload-area" id="uploadArea">
+                            <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                            <h4>Drag & Drop an image here</h4>
+                            <p class="text-muted">or click to browse files</p>
+                            <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                            <button class="btn btn-custom" onclick="document.getElementById('fileInput').click()">
+                                Choose File
+                            </button>
+                        </div>
+                        
+                        <div class="loading" id="uploadLoading">
+                            <div class="spinner"></div>
+                            <p>Analyzing image...</p>
+                        </div>
+                        
+                        <div class="result-container" id="uploadResult">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h5>Uploaded Image</h5>
+                                    <img id="uploadedImage" class="img-fluid rounded" style="max-width: 100%;">
+                                </div>
+                                <div class="col-md-6">
+                                    <h5>Detection Results</h5>
+                                    <div id="uploadResults"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Webcam Tab -->
+                    <div class="tab-pane fade" id="webcam" role="tabpanel">
+                        <div class="text-center mb-3">
+                            <button class="btn btn-custom me-2" id="startWebcam">
+                                <i class="fas fa-play"></i> Start Real-time Detection
+                            </button>
+                            <button class="btn btn-secondary" id="stopWebcam" style="display: none;">
+                                <i class="fas fa-stop"></i> Stop Detection
+                            </button>
+                        </div>
+                        
+                        <div class="webcam-container">
+                            <video id="video" autoplay playsinline></video>
+                            <canvas id="canvas"></canvas>
+                        </div>
+                        
+                        <div class="result-container" id="webcamResult">
+                            <h5>Real-time Detection Results</h5>
+                            <div id="webcamResults"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let stream = null;
+        let isWebcamActive = false;
+
+        // File upload handling
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const uploadLoading = document.getElementById('uploadLoading');
+        const uploadResult = document.getElementById('uploadResult');
+        const uploadedImage = document.getElementById('uploadedImage');
+        const uploadResults = document.getElementById('uploadResults');
+
+        // Webcam elements
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const startWebcamBtn = document.getElementById('startWebcam');
+        const stopWebcamBtn = document.getElementById('stopWebcam');
+        const webcamResult = document.getElementById('webcamResult');
+        const webcamResults = document.getElementById('webcamResults');
+        
+        // Real-time detection variables
+        let detectionInterval = null;
+        let isDetecting = false;
+
+        // Drag and drop functionality
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Please select an image file.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                uploadedImage.src = e.target.result;
+                uploadResult.style.display = 'block';
+                uploadLoading.style.display = 'block';
+                uploadResults.innerHTML = '';
+
+                // Send to server
+                const formData = new FormData();
+                formData.append('file', file);
+
+                fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    uploadLoading.style.display = 'none';
+                    if (data.success) {
+                        displayResults(data.faces, uploadResults);
+                    } else {
+                        uploadResults.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                    }
+                })
+                .catch(error => {
+                    uploadLoading.style.display = 'none';
+                    console.error('Upload error:', error);
+                    uploadResults.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Webcam functionality
+        startWebcamBtn.addEventListener('click', startWebcam);
+        stopWebcamBtn.addEventListener('click', stopWebcam);
+
+        function startWebcam() {
+            // Check if getUserMedia is supported
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('Webcam is not supported in this browser. Please use a modern browser.');
+                return;
+            }
+
+            navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    facingMode: 'user'
+                } 
+            })
+            .then(function(mediaStream) {
+                stream = mediaStream;
+                video.srcObject = stream;
+                video.onloadedmetadata = function() {
+                    video.play();
+                    isWebcamActive = true;
+                    isDetecting = true;
+                    startWebcamBtn.style.display = 'none';
+                    stopWebcamBtn.style.display = 'inline-block';
+                    webcamResult.style.display = 'block';
+                    
+                    // Set up canvas
+                    setupCanvas();
+                    
+                    // Start real-time detection
+                    startRealTimeDetection();
+                };
+            })
+            .catch(function(error) {
+                console.error('Error accessing webcam:', error);
+                if (error.name === 'NotAllowedError') {
+                    alert('Camera access denied. Please allow camera permissions and try again.');
+                } else if (error.name === 'NotFoundError') {
+                    alert('No camera found. Please connect a camera and try again.');
+                } else {
+                    alert('Error accessing webcam: ' + error.message);
+                }
+            });
+        }
+
+        function stopWebcam() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            video.srcObject = null;
+            isWebcamActive = false;
+            isDetecting = false;
+            startWebcamBtn.style.display = 'inline-block';
+            stopWebcamBtn.style.display = 'none';
+            webcamResult.style.display = 'none';
+            
+            // Stop real-time detection
+            if (detectionInterval) {
+                clearInterval(detectionInterval);
+                detectionInterval = null;
+            }
+        }
+
+        function startRealTimeDetection() {
+            if (!isWebcamActive || !isDetecting) return;
+            
+            // Set up interval for real-time detection (every 2 seconds)
+            detectionInterval = setInterval(() => {
+                if (!isWebcamActive || !isDetecting) return;
+                
+                const context = canvas.getContext('2d');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                context.drawImage(video, 0, 0);
+
+                const imageData = canvas.toDataURL('image/jpeg');
+
+                fetch('/webcam', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ image: imageData })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        // Draw results directly on canvas
+                        drawResultsOnCanvas(data.faces, context);
+                        // Also update the results panel
+                        displayResults(data.faces, webcamResults);
+                    } else {
+                        // Clear canvas if no faces detected
+                        context.clearRect(0, 0, canvas.width, canvas.height);
+                        context.drawImage(video, 0, 0);
+                        webcamResults.innerHTML = `<div class="alert alert-warning">No faces detected</div>`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Real-time detection error:', error);
+                    webcamResults.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+                });
+            }, 1000); // Analyze every 1 second for more responsive detection
+        }
+
+        function setupCanvas() {
+            // Set canvas size to match video
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+        }
+
+        function drawResultsOnCanvas(faces, context) {
+            // Clear previous drawings
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            context.drawImage(video, 0, 0);
+            
+            if (faces.length === 0) return;
+            
+            faces.forEach((face, index) => {
+                const [x, y, w, h] = face.bbox;
+                const emotion = face.emotion;
+                
+                // Draw bounding box with different colors based on emotion
+                const emotionColors = {
+                    'happy': '#00ff00',
+                    'sad': '#0000ff',
+                    'angry': '#ff0000',
+                    'fear': '#800080',
+                    'surprise': '#ffa500',
+                    'disgust': '#008000',
+                    'neutral': '#808080',
+                    'contempt': '#ffc0cb'
+                };
+                
+                const boxColor = emotionColors[emotion.toLowerCase()] || '#00ff00';
+                context.strokeStyle = boxColor;
+                context.lineWidth = 3;
+                context.strokeRect(x, y, w, h);
+                
+                // Draw emotion label background
+                const labelText = `${emotion.toUpperCase()}`;
+                context.font = 'bold 16px Arial';
+                const labelWidth = context.measureText(labelText).width + 20;
+                const labelHeight = 30;
+                const labelX = x;
+                const labelY = y - labelHeight - 5;
+                
+                // Draw label background
+                context.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                context.fillRect(labelX, labelY, labelWidth, labelHeight);
+                
+                // Draw label text
+                context.fillStyle = '#ffffff';
+                context.textAlign = 'left';
+                context.fillText(labelText, labelX + 10, labelY + 20);
+                
+                // Draw confidence score
+                const confidence = face.confidence_scores[emotion];
+                const confidenceText = `${confidence.toFixed(1)}%`;
+                context.font = '12px Arial';
+                const confWidth = context.measureText(confidenceText).width + 10;
+                const confX = x + w - confWidth;
+                const confY = y + h + 20;
+                
+                // Draw confidence background
+                context.fillStyle = 'rgba(0, 255, 0, 0.8)';
+                context.fillRect(confX, confY, confWidth, 20);
+                
+                // Draw confidence text
+                context.fillStyle = '#000000';
+                context.fillText(confidenceText, confX + 5, confY + 14);
+            });
+        }
+
+        function displayResults(faces, container) {
+            if (faces.length === 0) {
+                container.innerHTML = '<div class="alert alert-warning">No faces detected in the image.</div>';
+                return;
+            }
+
+            let html = '';
+            faces.forEach((face, index) => {
+                html += `
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title">Face ${index + 1}</h6>
+                            <div class="mb-2">
+                                <span class="emotion-badge emotion-${face.emotion.toLowerCase()}">${face.emotion}</span>
+                            </div>
+                            <h6>Confidence Scores:</h6>
+                            ${Object.entries(face.confidence_scores).map(([emotion, score]) => `
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between">
+                                        <span>${emotion.charAt(0).toUpperCase() + emotion.slice(1)}</span>
+                                        <span>${score.toFixed(1)}%</span>
+                                    </div>
+                                    <div class="confidence-bar">
+                                        <div class="confidence-fill" style="width: ${score}%"></div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // Add timestamp for real-time updates
+            const timestamp = new Date().toLocaleTimeString();
+            html += `<div class="text-muted small mt-2">Last updated: ${timestamp}</div>`;
+            
+            container.innerHTML = html;
+        }
+
+        // Clean up webcam when leaving the page
+        window.addEventListener('beforeunload', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            if (detectionInterval) {
+                clearInterval(detectionInterval);
+            }
+        });
+    </script>
+</body>
+</html> 
